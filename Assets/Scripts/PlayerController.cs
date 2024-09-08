@@ -12,6 +12,11 @@ public class PlayerController : MonoBehaviour
     // 이동 속도 
     public float speed = 3.0f;
 
+    // 플레이어 데미지 처리 
+    public static int hp = 3;   // 플레이어 HP 
+    public static string gameState; // 게임 상태 
+
+    bool inDamage = false;      // 데미지를 받는 중인지 여부 
     // 애니메이션 이름
     public string upAnime = "PlayerUp"; // 위 
     public string downAnime = "PlayerDown"; // 아래 
@@ -39,11 +44,21 @@ public class PlayerController : MonoBehaviour
         rbody = GetComponent<Rigidbody2D>();
         // 애니메이션 
         oldAnimation = downAnime;
+
+        // 게임 상태를 플레이 중으로 변경
+        gameState = "playing";
     }
 
     // Update is called once per frame
     void Update()
     {
+        // 게임중이 아니거나 데미지를 받는 중에는 아무것도 하지 않음
+        if (gameState != "playing" || inDamage)
+        {
+            return;
+        }
+
+
         if (isMoving == false)
         {
             axisH = Input.GetAxisRaw("Horizontal"); // 좌우 키 입력 
@@ -88,6 +103,27 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
+
+        if (inDamage)
+        {
+            // 점멸 시키기 Sin함수를 이용해 반복 구현 
+            float val = Mathf.Sin(Time.time * 50);
+            Debug.Log("val: " + val);
+
+            if (val > 0)
+            {
+                gameObject.GetComponent<SpriteRenderer>().enabled = true;
+            }
+            else
+            {
+                gameObject.GetComponent<SpriteRenderer>().enabled = false;
+            }
+
+
+        }
+
+
+
         // 이동 속도 변경하기
         rbody.velocity = new Vector2(axisH, axisV) * speed;
     }
@@ -130,6 +166,75 @@ public class PlayerController : MonoBehaviour
         }
         return angle;
 
+    }
+
+    // 접촉
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.tag == "Enemy")
+        {
+            GetDamage(collision.gameObject);
+        }
+    }
+
+    // 대미지
+    private void GetDamage(GameObject enemy)
+    {
+        // 게임 플레이 중이면?
+        if (gameState == "playing")
+        {
+            hp--;   // hp 감소 
+            if (hp > 0)
+            {
+                // 이동 중지
+                rbody.velocity = new Vector2(0, 0);
+
+                // 적 캐릭터 반대방향으로 히트백 
+                Vector3 toPos = (transform.position - enemy.transform.position).normalized;
+                rbody.AddForce(new Vector2(toPos.x * 4, toPos.y * 4), ForceMode2D.Impulse);
+
+                // 데미지를 받는 중으로 설정
+                inDamage = true;
+                Invoke("DamageEnd", 0.25f);
+            }
+        }
+    }
+
+    // 데미지 받기 끝
+    private void DamageEnd()
+    {
+        // 대미지를 받지 않는 상태로 변경
+        inDamage = false;
+
+        // 스프라이트 되돌리기
+        gameObject.GetComponent<SpriteRenderer>().enabled = true;
+
+    }
+
+    // 게임 오버 처리 
+    void GameOver()
+    {
+        Debug.Log("게임 오버!!");
+        gameState = "gameover";
+        /*
+        ==================
+        게임 오버 연출 
+        ==================
+        */
+        // 플레이어 충돌 판정 비활성 
+        GetComponent<CircleCollider2D>().enabled = false;
+
+        // 이동 중지
+        rbody.velocity = new Vector2(0, 0);
+
+        // 중력을 적용해 플레이어를 위로 튀어오르게 하는 연출 
+        rbody.gravityScale = 1;
+        rbody.AddForce(new Vector2(0, 5), ForceMode2D.Impulse);
+        // 애니메이션 변경하기 
+        GetComponent<Animator>().Play(deadAnime);
+        // 1초 후에 플레이어 캐릭터 제거하기 
+        Destroy(gameObject, 1f);
+        
     }
 
 }
